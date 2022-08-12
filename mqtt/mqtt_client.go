@@ -2,7 +2,6 @@ package mqtt
 
 import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"iot-edge-gateway/exceptions"
 	"iot-edge-gateway/utils"
 	"log"
 	"time"
@@ -11,15 +10,34 @@ import (
 const mqttServer = "tcp://127.0.0.1:1883"
 const gatewayId = "edge-gateway-1"
 
+type MessageType int
+
+const (
+	PublishResponse MessageType = iota
+	DeviceSender
+)
+
 type MessageBody struct {
-	SystemId string      `json:"systemId"`
-	Payload  interface{} `json:"payload"`
+	SystemId    string      `json:"systemId"`
+	Data        interface{} `json:"data"`
+	MessageType MessageType `json:"type"`
 }
 
-var systemId = ""
-var mqttClient mqtt.Client
+var (
+	mqttClient mqtt.Client
+	systemId   = ""
+	ch         = make(chan string)
 
-var Message mqtt.MessageHandler = subscription
+	messageHandler mqtt.MessageHandler = subscription
+
+	connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
+		log.Printf("mqtt client connected , host : %s", mqttServer)
+	}
+
+	connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
+		log.Printf("mqtt client was lost connected ! error : %s", err.Error())
+	}
+)
 
 type MQClient interface {
 	Publish(deviceId string, command string)
@@ -33,46 +51,45 @@ func init() {
 	options.SetClientID(gatewayId)
 	options.SetCleanSession(false)
 	options.SetKeepAlive(1000)
+	options.SetDefaultPublishHandler(messageHandler)
+	options.SetOnConnectHandler(connectHandler)
+	options.SetConnectionLostHandler(connectLostHandler)
 	options.SetAutoReconnect(true)
 	options.SetConnectTimeout(time.Duration(30) * time.Second)
 	mqttClient = mqtt.NewClient(options)
 	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
-	log.Printf("MQTT client was connected : %s", mqttServer)
+	mqttClient.Subscribe("java-sender", 1, messageHandler)
 }
 
-func GetInstance() MQClient {
+func (s *mqService) GetInstance() MQClient {
 	return &mqClient{}
-}
-
-func (mqClient) getClient() *mqtt.Client {
-	return &mqttClient
 }
 
 func subscription(client mqtt.Client, message mqtt.Message) {
 	body := MessageBody{}
 	err := utils.Byte2Model(message.Payload(), &body)
-	exceptions.ExceptionHandler(err, "byte convert to model failed !")
-	if body.SystemId != systemId {
+	if err != nil {
+		log.Printf("malformed message, can not handle message, message sent exception ! %s", err.Error())
 		return
 	}
-	log.Println(body)
-	//实时接收
-	//接收到的消息缓存到redis,响应式消费
+	switch body.MessageType {
+	case PublishResponse:
+		ch <- string(message.Payload())
+		log.Printf("receive message from %s , message is : %s", message.Topic(), string(message.Payload()))
+		return
+	case DeviceSender:
+		return
+	}
+	//接收到的消息通过channel发送到主线程进行响应,响应式消费
 }
 
-//func GetMqttClient() mqtt.Client {
-//	return s.client
-//}
-
 func (s *mqClient) Publish(deviceId string, command string) {
-	log.Printf("**** start to send message to topic : %s", deviceId)
 	token := mqttClient.Publish(deviceId, 1, false, command)
-	if token.Wait() {
-		log.Println("waiting for receive ")
+	if _, ok := <-ch; token.Wait() && token.Error() != nil && !ok {
+		log.Printf("send message 【%s】 to topic 【%s】 failed , ", command, deviceId)
 	} else {
-		log.Println("message send succeed ")
+		log.Printf("send message 【%s】 to topic 【%s】 succeed ", command, deviceId)
 	}
-	log.Println("aaa")
 }

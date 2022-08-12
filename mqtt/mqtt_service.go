@@ -9,9 +9,7 @@ type mqService struct {
 }
 
 func NewMQService() MQService {
-	service := mqService{}
-	service.client = GetInstance()
-	return &service
+	return &mqService{client: &mqClient{}}
 }
 
 func (s *mqService) SendToDevice(deviceId string, command string) {

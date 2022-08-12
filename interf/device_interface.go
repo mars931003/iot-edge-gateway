@@ -22,9 +22,7 @@ type deviceApi struct {
 }
 
 func NewDeviceApi() DeviceApi {
-	controller := deviceApi{}
-	controller.deviceService = service.NewDeviceService()
-	return &controller
+	return &deviceApi{deviceService: service.NewDeviceService()}
 }
 
 func (api *deviceApi) GetDeviceStatusById(request *restful.Request, response *restful.Response) {

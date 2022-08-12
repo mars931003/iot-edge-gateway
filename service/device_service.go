@@ -20,9 +20,7 @@ type deviceService struct {
 }
 
 func NewDeviceService() DeviceService {
-	service := deviceService{}
-	service.mqttService = mqtt.NewMQService()
-	return &service
+	return &deviceService{mqttService: mqtt.NewMQService()}
 }
 
 func (d *deviceService) GetDeviceStatusById(id string) *model.ApiResponse {
@@ -67,8 +65,6 @@ func getStatus(commandDescription string) error {
 }
 
 func (d *deviceService) SendCommand(deviceId string, command string) *model.ApiResponse {
-	log.Println(deviceId)
-	log.Println(command)
 	d.mqttService.SendToDevice(deviceId, command)
 	return &model.ApiResponse{}
 }
