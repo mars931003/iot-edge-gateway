@@ -1,10 +1,13 @@
-module iot-edge-gateway
+module github.com/mars931003/iot-edge-gateway
 
 go 1.18
 
 require (
-	github.com/eclipse/paho.mqtt.golang v1.4.1 // indirect
-	github.com/emicklei/go-restful v2.16.0+incompatible // indirect
+	github.com/eclipse/paho.mqtt.golang v1.4.1
+	github.com/emicklei/go-restful v2.16.0+incompatible
+)
+
+require (
 	github.com/emicklei/go-restful-swagger12 v0.0.0-20201014110547-68ccff494617 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
